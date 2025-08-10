@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Милый Таск‑Трекер с питомцем</title>
+  <!-- Tailwind Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body,#root { height: 100%; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-sky-50 to-indigo-100">
+  <div id="root"></div>
+
+  <!-- React 18 + ReactDOM UMD -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel Standalone to transform JSX in the browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    // === App Code (from your canvas) ===
+
+    const STORAGE_KEY = "cute_kanban_pet_v6";
+
+    const defaultItems = [
+      { id: "hat_top", name: "Цилиндр", type: "hat", icon: "🎩", cost: 20 },
+      { id: "hat_cap", name: "Кепка", type: "hat", icon: "🧢", cost: 15 },
+      { id: "acc_bow", name: "Бантик", type: "accessory", icon: "🎀", cost: 12 },
+      { id: "acc_glasses", name: "Очки", type: "accessory", icon: "😎", cost: 18 },
+      { id: "bg_meadow", name: "Луг", type: "bg", icon: "🌿", cost: 10, bg: "from-green-100 to-emerald-200" },
+      { id: "bg_space", name: "Космос", type: "bg", icon: "🌌", cost: 22, bg: "from-slate-800 to-indigo-900" },
+      { id: "bg_candy", name: "Конфетки", type: "bg", icon: "🍬", cost: 16, bg: "from-pink-100 to-rose-200" },
+      { id: "hat_crown", name: "Корона", type: "hat", icon: "👑", cost: 150, lockedUntilCoins: 120 },
+      { id: "acc_rocket", name: "Ракета", type: "accessory", icon: "🚀", cost: 90, lockedUntilCoins: 80 },
+      { id: "bg_castle", name: "Замок", type: "bg", icon: "🏰", cost: 200, bg: "from-amber-100 to-rose-200", lockedUntilCoins: 160 },
+      { id: "bg_ocean", name: "Океан", type: "bg", icon: "🌊", cost: 70, bg: "from-cyan-100 to-blue-200" },
+      { id: "acc_magicwand", name: "Волшебная палочка", type: "accessory", icon: "🪄", cost: 60 },
+      { id: "hat_party", name: "Колпак", type: "hat", icon: "🥳", cost: 35 },
+      { id: "acc_headphones", name: "Наушники", type: "accessory", icon: "🎧", cost: 55 },
+      { id: "bg_night", name: "Ночь", type: "bg", icon: "🌙", cost: 85, bg: "from-indigo-900 to-slate-900" },
+      { id: "bg_gold", name: "Золото", type: "bg", icon: "🟨", cost: 240, bg: "from-yellow-200 to-amber-300", lockedUntilCoins: 220 },
+    ];
+
+    const animals = ["🐻","🐼","🐶","🐱","🦊","🐹","🐨","🐰","🐯","🐷"];
+    const taskEmojis = ["📌","📝","🧠","⚙️","🎯","🧹","📚","🧪","💡","🔧","📦","🛠️","🧾","🏃","🧘"];
+
+    function diffFace(d){ return d<=1? "🙂" : d===2? "😊" : d===3? "😅" : d===4? "😬" : "🤯"; }
+    function uid() { return Math.random().toString(36).slice(2, 10); }
+
+    const initialData = () => ({
+      coins: 10,
+      tasks: [
+        { id: uid(), title: "Придумать 3 задачи", column: "todo", rewarded: false, difficulty: 2, emoji: "💡" },
+        { id: uid(), title: "Сделать первую задачу", column: "progress", rewarded: false, difficulty: 3, emoji: "🏃" },
+        { id: uid(), title: "Отметить выполненную задачу", column: "done", rewarded: true, difficulty: 1, emoji: "✅" },
+      ],
+      pet: {
+        emoji: animals[Math.floor(Math.random() * animals.length)],
+        species: null,
+        name: "",
+        mood: 80,
+        hunger: 20,
+        lastTick: Date.now(),
+        lastPat: 0,
+        owned: [],
+        equipped: { hat: null, accessory: null, bg: null },
+      },
+      onboardingDone: false,
+    });
+
+    function usePersistentState() {
+      const [state, setState] = useState(() => {
+        try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) return JSON.parse(raw);} catch {}
+        return initialData();
+      });
+      useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {} }, [state]);
+      return [state, setState];
+    }
+
+    function Header({ coins, onOpenShop, onReset }) {
+      return (
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50 sticky top-0 z-20">
+          <div />
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1.5 rounded-full bg-yellow-100 border border-yellow-200 text-yellow-900 text-sm flex items-center gap-2">
+              <span>🪙</span>
+              <b>{coins}</b>
+            </div>
+            <button onClick={onOpenShop} className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-500 active:scale-[0.98] transition">Магазин</button>
+            <button onClick={onReset} className="px-3 py-1.5 rounded-xl border text-sm hover:bg-gray-50">Сброс</button>
+          </div>
+        </div>
+      );
+    }
+
+    function StatBar({ label, value }) {
+      return (
+        <div>
+          <div className="flex items-center justify-between text-xs sm:text-sm mb-1"><span>{label}</span><span>{value}%</span></div>
+          <div className="w-full h-3 sm:h-3.5 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-[width] duration-500" style={{ width: `${value}%` }} />
+          </div>
+        </div>
+      );
+    }
+
+    function PetPanel({ pet, coins, onFeed, onPlay, onPet }) {
+      const bgClass = React.useMemo(() => {
+        const item = defaultItems.find((i) => i.id === pet.equipped.bg);
+        return item?.bg || "from-sky-50 to-blue-100";
+      }, [pet.equipped.bg]);
+      const hatIcon = defaultItems.find((i) => i.id === pet.equipped.hat)?.icon;
+      const accIcon = defaultItems.find((i) => i.id === pet.equipped.accessory)?.icon;
+      const now = Date.now();
+      const cooldownMs = Math.max(0, (pet.lastPat||0) + 60*60*1000 - now);
+      const minutes = Math.ceil(cooldownMs/60000);
+
+      return (
+        <div className="w-full">
+          <div className={`relative rounded-3xl p-4 h-52 sm:h-64 bg-gradient-to-br ${bgClass} border shadow-sm overflow-hidden`}>
+            <div className="absolute inset-0 pointer-events-none select-none opacity-20 text-6xl p-4">
+              <div className="absolute -bottom-2 -right-2 text-7xl">{defaultItems.find(i=>i.id===pet.equipped.bg)?.icon || ""}</div>
+            </div>
+            <div className="relative h-full flex flex-col items-center justify-center">
+              <div className="text-7xl leading-none drop-shadow-sm select-none">{pet.emoji}</div>
+              <div className="absolute top-6 text-3xl">{hatIcon}</div>
+              <div className="absolute bottom-8 text-2xl">{accIcon}</div>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <StatBar label="Настроение" value={pet.mood||80} />
+            <StatBar label="Сытость" value={100-(pet.hunger||0)} />
+          </div>
+          <div className="mt-2 text-xs text-gray-600">{pet.name || "Безымянный"}</div>
+          <div className="mt-2 flex flex-col sm:flex-row gap-2">
+            <button onClick={onFeed} disabled={coins<2} className={`w-full sm:w-auto px-3 py-2 rounded-xl ${coins<2?"bg-amber-200 text-white/70 cursor-not-allowed":"bg-amber-500 text-white hover:bg-amber-400"}`}>🍖 Накормить (−2🪙)</button>
+            <button onClick={onPlay} className="w-full sm:w-auto px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500">🪅 Поиграть</button>
+            <button onClick={onPet} disabled={cooldownMs>0} className={`w-full sm:w-auto px-3 py-2 rounded-xl border ${cooldownMs>0?"opacity-50 cursor-not-allowed":"hover:bg-gray-50"}`}>💗 Погладить{cooldownMs>0?` (${minutes} мин)`:""}</button>
+          </div>
+        </div>
+      );
+    }
+
+    function DifficultyDots({ value, onChange, max = 5 }) {
+      return (
+        <div className="flex flex-col gap-1 select-none w-full sm:w-auto">
+          <div className="text-xs text-gray-500">Сложность</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {Array.from({ length: max }).map((_, i) => {
+              const lvl = i + 1;
+              const active = lvl <= value;
+              const face = lvl <= 1 ? "🙂" : lvl === 2 ? "😊" : lvl === 3 ? "😅" : lvl === 4 ? "😬" : "🤯";
+              return (
+                <button
+                  key={lvl}
+                  onClick={() => onChange(lvl)}
+                  aria-label={`Сложность ${lvl}`}
+                  className={`w-12 h-12 rounded-full border text-xl leading-none flex items-center justify-center shadow-sm transition ${active ? "bg-emerald-100 border-emerald-300" : "bg-white border-gray-200 hover:bg-gray-50"}`}
+                >
+                  {face}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function EmojiPicker({ value, onChange, compact }) {
+      const [open, setOpen] = useState(false);
+      const ref = useRef(null);
+      useEffect(() => {
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+      }, []);
+      return (
+        <div className="relative" ref={ref}>
+          <button onClick={() => setOpen((o)=>!o)} className="px-3 h-12 rounded-lg border bg-white/80 hover:bg-white text-lg w-full sm:w-auto text-center">
+            {value || "😀"}
+          </button>
+          {open && (
+            <div className={`absolute left-0 mt-2 p-2 z-30 rounded-xl border bg-white shadow grid ${compact?"grid-cols-6":"grid-cols-8"} gap-1 w-max max-w-[220px]`}>
+              {taskEmojis.map((e) => (
+                <button key={e} className="text-xl leading-none p-1 rounded hover:bg-gray-100" onClick={() => { onChange(e); setOpen(false); }}>{e}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Column({ title, column, tasks, onDropTask, onDragStart, onAction, onEditTitle, onSetTaskEmoji }) {
+      const actionLabel = column === 'todo' ? '▶' : column === 'progress' ? '✅' : '❌';
+      const actionTitle = column === 'todo' ? 'Начать' : column === 'progress' ? 'Финиш' : 'Удалить';
+      return (
+        <div
+          className="flex-1 min-w-[280px] bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50 border rounded-2xl p-3 flex flex-col"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { const id = e.dataTransfer.getData('text/plain'); if (id) onDropTask(id, column); }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-gray-800">{title}</h2>
+          </div>
+          <div className="space-y-2">
+            {tasks.map((t) => (
+              <div key={t.id} draggable onDragStart={(e) => onDragStart(e, t.id)} className="group border rounded-xl bg-white p-3 hover:shadow-sm transition">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <EmojiPicker value={t.emoji} onChange={(e)=>onSetTaskEmoji(t.id,e)} compact />
+                  <input className="flex-1 min-w-0 bg-transparent outline-none border rounded-lg px-2 py-1 sm:border-0" value={t.title} onChange={(e) => onEditTitle(t.id, e.target.value)} />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-2 text-xs text-gray-500 gap-2">
+                  <span className="inline-block px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 w-max">Сложность: {t.difficulty} {diffFace(t.difficulty)}</span>
+                  <button onClick={()=>onAction(t.id)} className={`w-full sm:w-auto px-2 py-2 rounded-lg border ${column==='progress'?'hover:bg-emerald-50':column==='todo'?'hover:bg-gray-50':'hover:bg-red-50'}`} title={actionTitle}>{actionLabel}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function ShopModal({ open, onClose, coins, pet, onBuy, onEquip }) {
+      if (!open) return null;
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl border shadow-xl p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Магазин для питомца</h3>
+              <div className="px-3 py-1.5 rounded-full bg-yellow-100 border border-yellow-200 text-yellow-900 text-sm flex items-center gap-1"><span>🪙</span><b>{coins}</b></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[60vh] overflow-auto">
+              {defaultItems.map((item) => {
+                const owned = pet.owned.includes(item.id);
+                const equipped = pet.equipped[item.type] === item.id;
+                const locked = item.lockedUntilCoins && coins < item.lockedUntilCoins;
+                const canBuy = coins >= item.cost && !owned && !locked;
+                return (
+                  <div key={item.id} className={`border rounded-2xl p-3 bg-white flex flex-col gap-2 relative ${equipped ? "ring-2 ring-indigo-400" : ""}`}>
+                    {locked && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm grid place-items-center rounded-2xl text-sm text-gray-500">🔒 Требуется {item.lockedUntilCoins}🪙</div>}
+                    <div className="text-3xl">{item.icon}</div>
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-xs text-gray-500">{item.type === "bg" ? "Фон" : item.type === "hat" ? "Головной убор" : "Аксессуар"}</div>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between">
+                      <div className="text-sm"><span>🪙</span> {item.cost}</div>
+                      {!owned ? (
+                        <button disabled={!canBuy} onClick={() => onBuy(item.id)} className={`px-3 py-1.5 rounded-xl text-sm ${canBuy ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-gray-100 text-gray-400"}`}>Купить</button>
+                      ) : (
+                        <button onClick={() => onEquip(item.id)} className={`px-3 py-1.5 rounded-xl text-sm ${equipped ? "bg-emerald-100 text-emerald-700" : "bg-indigo-600 text-white hover:bg-indigo-500"}`}>{equipped ? "Надето" : "Надеть"}</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button onClick={onClose} className="px-4 py-2 rounded-xl border hover:bg-gray-50">Закрыть</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function AddTask({ onAdd }) {
+      const [title, setTitle] = useState("");
+      const [difficulty, setDifficulty] = useState(1);
+      const [emoji, setEmoji] = useState("📝");
+      const inputRef = useRef(null);
+      const submit = () => { const t = title.trim(); if (!t) return; onAdd({ title: t, difficulty, emoji }); setTitle(""); setDifficulty(1); inputRef.current?.focus(); };
+      return (
+        <div className="z-10">
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <EmojiPicker value={emoji} onChange={setEmoji} />
+            <input ref={inputRef} value={title} onChange={(e)=>setTitle(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') submit(); }} placeholder="Новая задача…" className="w-full h-12 px-3 rounded-xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50" />
+            <DifficultyDots value={difficulty} onChange={setDifficulty} />
+            <button onClick={submit} className="w-full sm:w-auto h-12 px-5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500">Добавить</button>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">Сложность влияет на награду: 🪙 = 5 × сложность</div>
+        </div>
+      );
+    }
+
+    function Confetti({ pieces }) {
+      return (
+        <div className="pointer-events-none fixed inset-0 overflow-hidden z-[60]">
+          {pieces.map((p) => (
+            <span key={p.id} className="absolute inline-block" style={{ left: p.x + "%", top: "-10%", transform: `rotate(${p.r}deg)`, animation: `fall ${p.d}s linear forwards`, fontSize: p.s }}>
+              {p.c}
+            </span>
+          ))}
+          <style>{`@keyframes fall{to{transform:translateY(120vh) rotate(720deg)}}`}</style>
+        </div>
+      );
+    }
+
+    function Toast({ message }) {
+      if (!message) return null;
+      return (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-[70]">
+          <div className="px-4 py-2 rounded-xl bg-black/80 text-white text-sm shadow-lg">{message}</div>
+        </div>
+      );
+    }
+
+    function ConfirmModal({ open, title, description, onConfirm, onCancel }) {
+      if (!open) return null;
+      return (
+        <div className="fixed inset-0 z-[80] grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={onCancel}/>
+          <div className="relative w-full max-w-sm rounded-2xl bg-white border shadow-xl p-5">
+            <div className="text-lg font-semibold mb-1">{title}</div>
+            <div className="text-sm text-gray-600 mb-4">{description}</div>
+            <div className="flex justify-end gap-2">
+              <button onClick={onCancel} className="px-4 py-2 rounded-xl border hover:bg-gray-50">Отмена</button>
+              <button onClick={onConfirm} className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500">Подтвердить</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function OnboardingModal({ open, onSubmit }) {
+      const [name, setName] = useState("");
+      const [selected, setSelected] = useState(animals[0]);
+      if (!open) return null;
+      return (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative w-full max-w-lg bg-white rounded-2xl border shadow-xl p-5">
+            <h3 className="text-lg font-semibold mb-2">Выберите питомца</h3>
+            <div className="grid grid-cols-5 gap-2 mb-3">
+              {animals.map((a)=> (
+                <button key={a} onClick={()=>setSelected(a)} className={`text-3xl p-2 rounded-2xl border ${selected===a?"ring-2 ring-indigo-400 bg-indigo-50":"bg-white"}`}>{a}</button>
+              ))}
+            </div>
+            <label className="text-sm text-gray-600">Имя питомца</label>
+            <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Например, Бублик" className="mt-1 w-full px-3 py-2 rounded-xl border" />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={()=>onSubmit({ species: selected, emoji: selected, name: name || "Бублик" })} className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500">Начать</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function CuteKanbanPetApp() {
+      const [state, setState] = usePersistentState();
+      const [shopOpen, setShopOpen] = useState(false);
+      const [confetti, setConfetti] = useState([]);
+      const [toast, setToast] = useState("");
+      const [confirm, setConfirm] = useState({ open: false, taskId: null });
+
+      useEffect(()=>{
+        const tick = () => {
+          setState((prev)=>{
+            const now = Date.now();
+            const dtMin = Math.max(0, Math.floor((now - (prev.pet.lastTick||now))/60000));
+            if (dtMin === 0) return prev;
+            const hunger = Math.min(100, (prev.pet.hunger||0) + dtMin*2);
+            const mood = Math.max(0, (prev.pet.mood||80) - Math.max(0, dtMin - 1));
+            return { ...prev, pet: { ...prev.pet, hunger, mood, lastTick: now } };
+          });
+        };
+        tick();
+        const id = setInterval(tick, 60000);
+        return ()=>clearInterval(id);
+      }, [setState]);
+
+      const columns = [
+        { key: "todo", title: "To‑Do" },
+        { key: "progress", title: "В работе" },
+        { key: "done", title: "Готово" },
+      ];
+
+      const tasksByCol = useMemo(() => {
+        const map = { todo: [], progress: [], done: [] };
+        state.tasks.forEach((t) => map[t.column].push(t));
+        return map;
+      }, [state.tasks]);
+
+      const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; };
+      const rewardFor = (task) => 5 * (task.difficulty || 1);
+
+      const triggerConfetti = () => {
+        const palette = ["🎉","✨","⭐","💥","🎊","🌟"]; 
+        const pieces = Array.from({ length: 30 }).map(() => ({ id: uid(), x: Math.random()*100, r: Math.random()*360, d: 1.2 + Math.random()*0.9, s: 18 + Math.floor(Math.random()*12), c: palette[Math.floor(Math.random()*palette.length)], }));
+        setConfetti((prev)=>[...prev, ...pieces]);
+        setTimeout(()=>{ setConfetti((prev)=>prev.slice(pieces.length)); }, 1800);
+      };
+
+      const showToast = (text) => { setToast(text); setTimeout(()=>setToast(""), 2500); };
+
+      const reallyFinish = (id) => {
+        setState((prev)=>{
+          let coinDelta = 0;
+          const tasks = prev.tasks.map((t)=>{
+            if (t.id!==id) return t;
+            let rewarded = t.rewarded;
+            if (!rewarded) { rewarded = true; coinDelta = rewardFor(t); }
+            return { ...t, column: "done", rewarded };
+          });
+          const newState = { ...prev, tasks, coins: prev.coins + coinDelta };
+          if (coinDelta>0) { setTimeout(()=>{ triggerConfetti(); showToast(`+${coinDelta} монет за задачу!`); }, 10); }
+          return newState;
+        });
+        setConfirm({ open:false, taskId:null });
+      };
+
+      const handleDrop = (id, column) => {
+        if (column === "done") { setConfirm({ open:true, taskId: id }); return; }
+        setState((prev) => ({ ...prev, tasks: prev.tasks.map((t)=> t.id===id? { ...t, column } : t) }));
+      };
+
+      const addTask = ({ title, difficulty, emoji }) => { setState((prev) => ({ ...prev, tasks: [{ id: uid(), title, column: "todo", rewarded: false, difficulty, emoji }, ...prev.tasks], })); };
+      const deleteTask = (id) => { setState((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) })); };
+      const editTaskTitle = (id, title) => { setState((prev) => ({ ...prev, tasks: prev.tasks.map((t) => (t.id === id ? { ...t, title } : t)) })); };
+      const setTaskEmoji = (id, emoji) => { setState((prev) => ({ ...prev, tasks: prev.tasks.map((t)=> t.id===id? { ...t, emoji } : t) })); };
+      const actionFor = (column, id) => {
+        if (column==='todo') setState((prev)=>({ ...prev, tasks: prev.tasks.map((t)=> t.id===id? { ...t, column: 'progress' } : t) }));
+        if (column==='progress') setConfirm({ open:true, taskId:id });
+        if (column==='done') deleteTask(id);
+      };
+
+      const resetAll = () => {
+        if (!window.confirm("Сбросить прогресс и магазин? Начать онбординг заново.")) return;
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        setState(initialData());
+      };
+
+      const feed = () => setState((prev)=>{ if (prev.coins < 2) return prev; const hunger = Math.max(0, (prev.pet.hunger||0) - 20); const mood = Math.min(100, (prev.pet.mood||80) + 5); return { ...prev, coins: prev.coins - 2, pet: { ...prev.pet, hunger, mood } }; });
+      const play = () => { setState((prev)=>({ ...prev, pet: { ...prev.pet, mood: Math.min(100, (prev.pet.mood||80) + 12) } })); triggerConfetti(); showToast("Ваш питомец счастлив! ✨"); };
+      const pettingAllowed = () => Date.now() - (state.pet.lastPat||0) >= 60*60*1000;
+      const petting = () => { if (!pettingAllowed()) return; setState((prev)=>({ ...prev, pet: { ...prev.pet, mood: Math.min(100, (prev.pet.mood||80) + 6), lastPat: Date.now() } })); };
+
+      return (
+        <div className="min-h-screen w-full bg-gradient-to-br from-sky-50 to-indigo-100 text-gray-800">
+          <Header coins={state.coins} onOpenShop={() => setShopOpen(true)} onReset={resetAll} />
+
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-4">
+            <div className="lg:w-80">
+              <PetPanel pet={state.pet} coins={state.coins} onFeed={feed} onPlay={play} onPet={petting} />
+            </div>
+            <div className="flex flex-col gap-3">
+              <AddTask onAdd={addTask} />
+              <div className="hidden md:flex gap-3 overflow-auto pb-2">
+                {columns.map((c) => (
+                  <Column key={c.key} title={c.title} column={c.key} tasks={tasksByCol[c.key]} onDropTask={handleDrop} onDragStart={onDragStart} onAction={(id)=>actionFor(c.key, id)} onEditTitle={editTaskTitle} onSetTaskEmoji={setTaskEmoji} />
+                ))}
+              </div>
+              <div className="md:hidden flex flex-col gap-3">
+                {columns.map((c) => (
+                  <Column key={c.key} title={c.title} column={c.key} tasks={tasksByCol[c.key]} onDropTask={handleDrop} onDragStart={onDragStart} onAction={(id)=>actionFor(c.key, id)} onEditTitle={editTaskTitle} onSetTaskEmoji={setTaskEmoji} />
+                ))}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">💡 Перетаскивайте карточки. Перемещение в «Готово» спросит подтверждение и начислит монеты: 5 × сложность. Открывайте «Магазин», чтобы радовать питомца!</div>
+            </div>
+          </div>
+
+          <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} coins={state.coins} pet={state.pet} onBuy={(itemId)=>{
+            const item = defaultItems.find((i) => i.id === itemId); if (!item) return;
+            setState((prev) => { if (prev.coins < item.cost || prev.pet.owned.includes(itemId)) return prev; return { ...prev, coins: prev.coins - item.cost, pet: { ...prev.pet, owned: [...prev.pet.owned, itemId] } }; });
+          }} onEquip={(itemId)=>{
+            const item = defaultItems.find((i) => i.id === itemId); if (!item) return;
+            setState((prev) => ({ ...prev, pet: { ...prev.pet, equipped: { ...prev.pet.equipped, [item.type]: itemId } } }));
+          }} />
+
+          <ConfirmModal open={confirm.open} title="Завершить задачу?" description="Перенести в «Готово» и получить награду." onCancel={()=>setConfirm({open:false, taskId:null})} onConfirm={()=>reallyFinish(confirm.taskId)} />
+          <OnboardingModal open={!state.onboardingDone} onSubmit={(payload)=>{ setState((prev)=>({ ...prev, pet: { ...prev.pet, species: payload.species, emoji: payload.emoji, name: payload.name }, onboardingDone: true })); }} />
+
+          <Confetti pieces={confetti} />
+          <Toast message={toast} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<CuteKanbanPetApp />);
+  </script>
+</body>
+</html>
